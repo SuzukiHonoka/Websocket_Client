@@ -156,7 +156,8 @@ func connect() {
 				msgRec.SetText(msgRec.Text + string(message) + "\n")
 			}
 		}()
-		for {
+
+		for conn {
 			select {
 			case <-done:
 				connectBtn.SetText("Connect")
