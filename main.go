@@ -125,14 +125,14 @@ func connect() {
 		inputAddr.SetText(strings.ReplaceAll(inputAddr.Text, " ", ""))
 		failed = false
 		done = make(chan struct{})
-		lock.mu.Lock()
-		lock.lock = true
 		_, err := url.Parse(inputAddr.Text)
 		if err != nil {
 			dialog.NewError(errors.New("parse server address failed"), myWindow).Show()
 			return
 			//panic("parse server address failed")
 		}
+		lock.mu.Lock()
+		lock.lock = true
 		client, _, err = para.Dial(inputAddr.Text, nil)
 		lock.lock = false
 		lock.mu.Unlock()
@@ -147,11 +147,15 @@ func connect() {
 		defer client.Close()
 		go func() {
 			defer close(done)
-			for {
+			for conn {
+				fmt.Println("reading..")
 				_, message, err := client.ReadMessage()
 				if err != nil {
 					failed = true
 					conn = false
+					if !conn {
+						return
+					}
 					dialog.NewError(err, myWindow).Show()
 					return
 				}
@@ -167,6 +171,7 @@ func connect() {
 				fmt.Println("done")
 				conn = false
 				connectBtn.SetText("Connect")
+				return
 			case <-interrupt:
 				fmt.Println("interrupt")
 				conn = false
@@ -174,13 +179,11 @@ func connect() {
 				if err != nil {
 					fmt.Println("write close:", err)
 				}
-				break
+				return
 			}
 		}
 	} else {
-		if conn {
-			lock.lock = false
-		}
+		conn = false
 		if !failed {
 			done <- struct{}{}
 		}
