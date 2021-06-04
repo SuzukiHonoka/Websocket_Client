@@ -115,14 +115,14 @@ func connect() {
 		fmt.Println("wtf")
 		return
 	}
-	lock.mu.Lock()
 	if !conn {
-		failed = false
-		done = make(chan struct{})
 		if len(inputAddr.Text) == 0 {
 			dialog.NewError(errors.New("why not to write something"), myWindow).Show()
 			return
 		}
+		failed = false
+		done = make(chan struct{})
+		lock.mu.Lock()
 		lock.lock = true
 		_, err := url.Parse(inputAddr.Text)
 		if err != nil {
