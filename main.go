@@ -15,14 +15,15 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 )
 
 var (
 	myWindow fyne.Window
 	//
-	//safelock *SafeLock
-	lock   = false
+	lock *safeLock
+	//lock   = false
 	failed bool
 	//
 	conn = false
@@ -41,6 +42,11 @@ var (
 	done      = make(chan struct{})
 	//
 )
+
+type safeLock struct {
+	mu   sync.Mutex
+	lock bool
+}
 
 type multiLineEntryEx struct {
 	widget.Entry
@@ -65,7 +71,7 @@ func NewMultiLineEntryEx() *multiLineEntryEx {
 }
 
 func main() {
-	//safelock = &SafeLock{}
+	lock = &safeLock{}
 	signal.Notify(interrupt, os.Interrupt)
 	//
 	myApp := app.New()
@@ -105,9 +111,11 @@ func main() {
 }
 
 func connect() {
-	if lock {
+	if lock.lock {
+		fmt.Println("wtf")
 		return
 	}
+	lock.mu.Lock()
 	if !conn {
 		failed = false
 		done = make(chan struct{})
@@ -115,14 +123,15 @@ func connect() {
 			dialog.NewError(errors.New("why not to write something"), myWindow).Show()
 			return
 		}
-		lock = true
+		lock.lock = true
 		_, err := url.Parse(inputAddr.Text)
 		if err != nil {
 			dialog.NewError(errors.New("parse server address failed"), myWindow).Show()
 			//panic("parse server address failed")
 		}
 		client, _, err = para.Dial(inputAddr.Text, nil)
-		lock = false
+		lock.lock = false
+		lock.mu.Unlock()
 		if err != nil {
 			dialog.NewError(errors.New("dial to server failed"), myWindow).Show()
 			return
@@ -162,13 +171,12 @@ func connect() {
 			}
 		}
 	} else {
-		if lock {
-			return
-		}
-		lock = false
+		lock.mu.Unlock()
+		lock.lock = false
 		if !failed {
 			done <- struct{}{}
 		}
+		conn = false
 		msgRec.SetText("")
 	}
 }
