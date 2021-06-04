@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"time"
 )
@@ -96,6 +97,7 @@ func main() {
 			dialog.NewError(errors.New("you have to connect to the server first"), myWindow).Show()
 			return
 		}
+		_ = client.SetWriteDeadline(time.Now().Add(5 * time.Second))
 		err := client.WriteMessage(websocket.TextMessage, []byte(msgToSend.Text))
 		if err != nil {
 			dialog.NewError(errors.New("send msg failed"), myWindow).Show()
@@ -120,6 +122,7 @@ func connect() {
 			dialog.NewError(errors.New("why not to write something"), myWindow).Show()
 			return
 		}
+		inputAddr.SetText(strings.ReplaceAll(inputAddr.Text, " ", ""))
 		failed = false
 		done = make(chan struct{})
 		lock.mu.Lock()
@@ -127,6 +130,7 @@ func connect() {
 		_, err := url.Parse(inputAddr.Text)
 		if err != nil {
 			dialog.NewError(errors.New("parse server address failed"), myWindow).Show()
+			return
 			//panic("parse server address failed")
 		}
 		client, _, err = para.Dial(inputAddr.Text, nil)
@@ -160,6 +164,8 @@ func connect() {
 		for conn {
 			select {
 			case <-done:
+				fmt.Println("done")
+				conn = false
 				connectBtn.SetText("Connect")
 			case <-interrupt:
 				fmt.Println("interrupt")
@@ -167,17 +173,17 @@ func connect() {
 				err := client.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
 					fmt.Println("write close:", err)
-					return
 				}
+				break
 			}
 		}
 	} else {
-		lock.mu.Unlock()
-		lock.lock = false
+		if conn {
+			lock.lock = false
+		}
 		if !failed {
 			done <- struct{}{}
 		}
-		conn = false
 		msgRec.SetText("")
 	}
 }
