@@ -11,13 +11,19 @@ import (
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"github.com/gorilla/websocket"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"time"
 )
 
 var (
 	myWindow fyne.Window
+	//
+	//safelock *SafeLock
+	lock   = false
+	failed bool
 	//
 	conn = false
 	//
@@ -25,7 +31,12 @@ var (
 	inputAddr  *widget.Entry
 	connectBtn *widget.Button
 	//
-	client    *websocket.Conn
+	para = &websocket.Dialer{
+		Proxy:            http.ProxyFromEnvironment,
+		HandshakeTimeout: 3 * time.Second,
+	}
+	client *websocket.Conn
+	//
 	interrupt = make(chan os.Signal, 1)
 	done      = make(chan struct{})
 	//
@@ -54,6 +65,7 @@ func NewMultiLineEntryEx() *multiLineEntryEx {
 }
 
 func main() {
+	//safelock = &SafeLock{}
 	signal.Notify(interrupt, os.Interrupt)
 	//
 	myApp := app.New()
@@ -93,24 +105,31 @@ func main() {
 }
 
 func connect() {
+	if lock {
+		return
+	}
 	if !conn {
+		failed = false
+		done = make(chan struct{})
 		if len(inputAddr.Text) == 0 {
 			dialog.NewError(errors.New("why not to write something"), myWindow).Show()
 			return
 		}
+		lock = true
 		_, err := url.Parse(inputAddr.Text)
 		if err != nil {
 			dialog.NewError(errors.New("parse server address failed"), myWindow).Show()
 			//panic("parse server address failed")
 		}
-		client, _, err = websocket.DefaultDialer.Dial(inputAddr.Text, nil)
+		client, _, err = para.Dial(inputAddr.Text, nil)
+		lock = false
 		if err != nil {
 			dialog.NewError(errors.New("dial to server failed"), myWindow).Show()
 			return
 			//panic("dial to server failed")
 		}
 		fmt.Println("ws connect ok")
-		conn = !conn
+		conn = true
 		connectBtn.SetText("DisConnect")
 		defer client.Close()
 		go func() {
@@ -118,10 +137,13 @@ func connect() {
 			for {
 				_, message, err := client.ReadMessage()
 				if err != nil {
+					failed = true
+					conn = false
 					dialog.NewError(err, myWindow).Show()
 					return
 				}
 				fmt.Printf("recv: %s", message)
+				fmt.Println()
 				msgRec.SetText(msgRec.Text + string(message) + "\n")
 			}
 		}()
@@ -131,6 +153,7 @@ func connect() {
 				connectBtn.SetText("Connect")
 			case <-interrupt:
 				fmt.Println("interrupt")
+				conn = false
 				err := client.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
 					fmt.Println("write close:", err)
@@ -139,8 +162,13 @@ func connect() {
 			}
 		}
 	} else {
-		conn = !conn
-		done <- struct{}{}
+		if lock {
+			return
+		}
+		lock = false
+		if !failed {
+			done <- struct{}{}
+		}
 		msgRec.SetText("")
 	}
 }
