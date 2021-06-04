@@ -92,7 +92,6 @@ func main() {
 	msgToSend := NewMultiLineEntryEx()
 	msgToSend.SetPlaceHolder("Press enter to send message")
 	msgToSend.action = func() {
-		msgToSend.SetText("")
 		if !conn {
 			dialog.NewError(errors.New("you have to connect to the server first"), myWindow).Show()
 			return
@@ -103,6 +102,7 @@ func main() {
 			dialog.NewError(errors.New("send msg failed"), myWindow).Show()
 			//panic("send msg failed")
 		}
+		msgToSend.SetText("")
 		msgRec.SetText("")
 	}
 	//shortcutBtn := widget.NewButton("Shortcut", nil)
