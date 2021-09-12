@@ -65,8 +65,15 @@ func NewKeyDownEntryEx(multi bool) *KeyDownEntryEx {
 }
 
 func main() {
-	signal.Notify(interrupt, os.Interrupt)
-	//
+	signal.Notify(interrupt, os.Interrupt, os.Kill)
+	go func() {
+		<-interrupt
+		if conn {
+			disconnect()
+		}
+		fmt.Println("interrupt")
+		os.Exit(1)
+	}()
 	myApp := app.New()
 	myApp.Settings().SetTheme(theme.LightTheme())
 	myWindow = myApp.NewWindow("Websocket_Client_by_Starx")
@@ -101,18 +108,6 @@ func main() {
 	card := widget.NewCard("Websocket Client", "A tool made by Starx", container.New(layout.NewVBoxLayout(), inputAddr, connectBtn, msgRec, msgToSend, send))
 	myWindow.SetContent(card)
 	myWindow.ShowAndRun()
-	go func() {
-		for {
-			select {
-			case <-interrupt:
-				if conn {
-					disconnect()
-				}
-				fmt.Println("interrupt")
-				os.Exit(1)
-			}
-		}
-	}()
 }
 
 func proxy() {
@@ -174,15 +169,11 @@ func connect() {
 				msgRec.SetText(msgRec.Text + string(message) + "\n")
 			}
 		}()
-		for conn {
-			select {
-			case <-done:
-				disconnect()
-				connectBtn.SetText("Connect")
-				connectBtn.Enable()
-				fmt.Println("done")
-			}
-		}
+		<-done
+		disconnect()
+		connectBtn.SetText("Connect")
+		connectBtn.Enable()
+		fmt.Println("done")
 		return
 	}
 	if failed {
@@ -196,5 +187,7 @@ func disconnect() {
 	err := client.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
 		fmt.Println("write close:", err)
+		return
 	}
+	fmt.Println("close ok")
 }
