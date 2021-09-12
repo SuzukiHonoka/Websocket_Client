@@ -124,7 +124,6 @@ func connect() {
 		return
 	}
 	if !conn {
-		connectBtn.Disable()
 		msgRec.SetText("")
 		if len(inputAddr.Text) == 0 {
 			dialog.NewError(errors.New("why not to write something"), myWindow).Show()
@@ -138,6 +137,7 @@ func connect() {
 			dialog.NewError(errors.New("parse server address failed"), myWindow).Show()
 			return
 		}
+		connectBtn.Disable()
 		connectBtn.SetText("Connecting")
 		client, _, err = para.Dial(inputAddr.Text, nil)
 		if err != nil {
